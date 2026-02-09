@@ -1,0 +1,9 @@
+1. Data Enrichment (Làm giàu dữ liệu)Đây là thuật ngữ chính xác nhất cho hành động này. Bạn không chỉ lưu trữ dữ liệu gốc mà còn dùng AI để "đẻ" thêm thông tin mới (bản dịch tiếng Việt, tag, summary) nhằm làm cho tập dữ liệu giá trị hơn.Trong case của bạn: Từ fullplot (tiếng Anh) $\rightarrow$ thành fullplot_vi (tiếng Việt).2. LLM-based ETL (Extract - Transform - Load)Trong quy trình xử lý dữ liệu truyền thống (ETL), bước Transform (chuyển đổi) thường là tính toán số học hoặc chuẩn hóa text. Ở đây, bạn đang dùng LLM để thực hiện bước Transform đó.Extract: Lấy dữ liệu từ MongoDB.Transform: Dùng Gemini dịch sang tiếng Việt.Load: Update ngược lại vào MongoDB.
+
+ử dụng FastAPI vì nó nhẹ, nhanh và hỗ trợ xử lý bất đồng bộ (Background Tasks) cực tốt cho các tác vụ tốn thời gian như gọi LLM.
+
+1. Code Microservice (main.py)
+Code này cho phép bạn gọi dịch "tất cả" hoặc dịch "theo filter" (thể loại, năm) thông qua API.
+
+2. Dockerfile (Dockerfile)
+File này dùng để build image và đẩy lên container registry của bạn.
