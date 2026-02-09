@@ -1,9 +1,124 @@
-1. Data Enrichment (Làm giàu dữ liệu)Đây là thuật ngữ chính xác nhất cho hành động này. Bạn không chỉ lưu trữ dữ liệu gốc mà còn dùng AI để "đẻ" thêm thông tin mới (bản dịch tiếng Việt, tag, summary) nhằm làm cho tập dữ liệu giá trị hơn.Trong case của bạn: Từ fullplot (tiếng Anh) $\rightarrow$ thành fullplot_vi (tiếng Việt).2. LLM-based ETL (Extract - Transform - Load)Trong quy trình xử lý dữ liệu truyền thống (ETL), bước Transform (chuyển đổi) thường là tính toán số học hoặc chuẩn hóa text. Ở đây, bạn đang dùng LLM để thực hiện bước Transform đó.Extract: Lấy dữ liệu từ MongoDB.Transform: Dùng Gemini dịch sang tiếng Việt.Load: Update ngược lại vào MongoDB.
+= Movie Translator Service: AI-Powered Microservices :author: Masterhuthiu 
 
-ử dụng FastAPI vì nó nhẹ, nhanh và hỗ trợ xử lý bất đồng bộ (Background Tasks) cực tốt cho các tác vụ tốn thời gian như gọi LLM.
+== 📝 Project Introduction
 
-1. Code Microservice (main.py)
-Code này cho phép bạn gọi dịch "tất cả" hoặc dịch "theo filter" (thể loại, năm) thông qua API.
+The Movie Translator Service is a modern microservices-based system designed to automatically translate movie plots from English to Vietnamese using Artificial Intelligence (AI). The system is engineered to handle large datasets asynchronously and maintain high availability on a Kubernetes platform.
++4
 
-2. Dockerfile (Dockerfile)
-File này dùng để build image và đẩy lên container registry của bạn.
+
+Core Technology: Google Gemini API (Model: gemma-3-27b-it).
++2
+
+
+Main Functionality: Scans the movie database, automatically translates English plots that lack Vietnamese versions, and updates the results back into the database.
++3
+
+== 🏗 System Architecture
+
+The system consists of several key components:
+
+
+API Layer: Developed using FastAPI on Python 3.11.
++3
+
+
+Database: MongoDB stores the sample movie data (sample_mflix).
++4
+
+
+AI Engine: Integrates the google-generativeai SDK to interact with the Gemma-3 model.
++3
+
+
+Containerization: Packaged using Docker and deployed via GitHub Actions.
++1
+
+
+Orchestration: Fully managed and orchestrated by Kubernetes (K8s).
++2
+
+== 🛠 Technical Configuration
+
+=== 1. Environment Variables (.env) The project requires the following configuration parameters:
++2
+
+[source,env]
+GEMINI_API_KEY=AIzaSy... # Google AI Studio API Key MONGO_URI=mongodb://mongodb:27017/ # MongoDB connection string PORT=8080 # FastAPI service port
+=== 2. Dependencies (requirements.txt) The service utilizes optimized Python libraries:
++2
+
+
+fastapi & uvicorn: High-performance web framework.
++3
+
+
+google-generativeai: SDK for Gemini AI connectivity.
++3
+
+
+pymongo: Official driver for MongoDB operations.
++3
+
+== 🚀 Deployment Guide
+
+=== Step 1: Initialize Kubernetes Secrets Before deploying the pods, create a secret to securely store sensitive information:
++2
+
+[source,bash]
+kubectl create secret generic ai-secrets
+--from-literal=GEMINI_API_KEY=YOUR_KEY_HERE
+
+--from-literal=MONGO_URI=mongodb://mongodb:27017/
+
+=== Step 2: Infrastructure Deployment Deploy the components in the following order:
++2
+
+MongoDB:
+
+
+kubectl apply -f 1mongo-deploy.yml 
+
+Translator App:
+
+
+kubectl apply -f 3translator-deploy.yml 
+
+=== Step 3: CI/CD Pipeline The system automatically builds and pushes the image to Docker Hub on every push to the main branch via GitHub Actions. The image is tagged as: ${{ secrets.DOCKERHUB_USERNAME }}/movie-translator:latest.
+
+== 📡 API Usage Instructions
+
+=== 1. Health Check
+
+
+Endpoint: GET / 
++1
+
+
+Description: Verifies if the service is up and running.
++1
+
+=== 2. Trigger Translation Process
+
+
+Endpoint: POST /translate/filter 
++1
+
+
+Parameters: year (Optional - Filter movies by release year).
++1
+
+Usage: [source,bash]
+
+curl -X 'POST' 'http://<ingress-ip>/translate/filter?year=2026'
+== 📂 Core Source Structure (main.py)
+
+The application leverages Background Tasks to ensure the API responds immediately while the AI processes translations in the background:
++1
+
+[source,python]
+@app.post('/translate/filter') async def translate(background_tasks: BackgroundTasks, year: Optional[int] = None): # Search for movies with an English plot but no Vietnamese translation query = {'fullplot': {'$exists': True}, 'fullplot_vi': {'$exists': False}} if year: query['year'] = year
+
+# Queue the translation process as a background task
+background_tasks.add_task(background_translate, query)
+return {'status': 'started'}
+Copyright © 2026 Masterhuthiu. Built with ❤️ and AI
