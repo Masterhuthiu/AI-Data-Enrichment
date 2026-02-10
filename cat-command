@@ -89,8 +89,9 @@ spec:
       - name: translator-container
         image: masterhuthiu/movie-translator:latest
         imagePullPolicy: Always
+        # Khai báo port container lắng nghe
         ports:
-        - containerPort: 8080
+        - containerPort: 8083
         env:
         - name: CONSUL_HOST
           value: "consul-server-service"
@@ -109,9 +110,9 @@ spec:
     app: translator
   ports:
     - protocol: TCP
-      port: 80
-      targetPort: 8080
-  type: NodePort
+      port: 8083       # Port của Service (Port bạn sẽ curl vào)
+      targetPort: 8083 # Port thực tế ứng dụng đang chạy bên trong Pod
+  type: ClusterIP
 EOF
 
 # 4. Cập nhật requirements.txt (Thêm python-consul2)
