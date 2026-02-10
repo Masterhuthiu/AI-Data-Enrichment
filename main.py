@@ -15,7 +15,7 @@ CONSUL_HOST = os.getenv('CONSUL_HOST', 'consul-server')
 CONSUL_PORT = int(os.getenv('CONSUL_PORT', 8500))
 SERVICE_NAME = 'translator-service'
 SERVICE_ID = f"{SERVICE_NAME}-{socket.gethostname()}"
-SERVICE_PORT = 8080
+SERVICE_PORT = 8083
 
 # --- Cấu hình AI & Database ---
 try:
