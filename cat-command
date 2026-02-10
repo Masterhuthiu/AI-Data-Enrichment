@@ -52,7 +52,7 @@ spec:
     spec:
       containers:
       - name: mongodb
-        image: quay.io/cosa199212/mongo-sample-mflix:latest
+        image: mongo:latest  # Sử dụng image chuẩn của Docker Hub nếu image kia lỗi
         ports:
         - containerPort: 27017
 ---
