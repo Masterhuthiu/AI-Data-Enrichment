@@ -1,30 +1,35 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mongodb
+  name: postgres
 spec:
   selector:
     matchLabels:
-      app: mongodb
+      app: postgres
   template:
     metadata:
       labels:
-        app: mongodb
+        app: postgres
     spec:
       containers:
-      - name: mongodb
-        image: quay.io/cosa199212/mongo-sample-mflix:latest
+      - name: postgres
+        image: masterhuthiu/mongo-sample-mflix:latest
         ports:
-        - containerPort: 27017
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: "jhipster"
+        - name: POSTGRES_PASSWORD
+          value: "jhipster"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: mongodb  # Đổi từ mongodb-service thành mongodb để trùng với MONGO_URI
+  name: postgres
 spec:
   selector:
-    app: mongodb
+    app: postgres
   ports:
     - protocol: TCP
-      port: 27017
-      targetPort: 27017
+      port: 5432
+      targetPort: 5432
