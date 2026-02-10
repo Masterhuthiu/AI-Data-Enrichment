@@ -16,21 +16,11 @@ spec:
       - name: translator-container
         image: masterhuthiu/movie-translator:latest
         imagePullPolicy: Always
-        ports:
-        - containerPort: 8080
+        env:
+        - name: CONSUL_HOST
+          value: "consul-server-service" # Tên service của Consul trong K8s
+        - name: CONSUL_PORT
+          value: "8500"
         envFrom:
         - secretRef:
             name: ai-secrets
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: translator-service
-spec:
-  selector:
-    app: translator
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8080
-  type: NodePort

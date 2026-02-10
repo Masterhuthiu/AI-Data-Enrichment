@@ -3,15 +3,12 @@
 == 📝 Project Introduction
 
 The Movie Translator Service is a modern microservices-based system designed to automatically translate movie plots from English to Vietnamese using Artificial Intelligence (AI). The system is engineered to handle large datasets asynchronously and maintain high availability on a Kubernetes platform.
-+4
 
 
 Core Technology: Google Gemini API (Model: gemma-3-27b-it).
-+2
 
 
 Main Functionality: Scans the movie database, automatically translates English plots that lack Vietnamese versions, and updates the results back into the database.
-+3
 
 == 🏗 System Architecture
 
@@ -19,50 +16,50 @@ The system consists of several key components:
 
 
 API Layer: Developed using FastAPI on Python 3.11.
-+3
-
-
-Database: MongoDB stores the sample movie data (sample_mflix).
-+4
-
-
-AI Engine: Integrates the google-generativeai SDK to interact with the Gemma-3 model.
-+3
-
-
-Containerization: Packaged using Docker and deployed via GitHub Actions.
 +1
 
 
+Database: MongoDB stores the sample movie data (sample_mflix).
+
+
+AI Engine: Integrates the google-generativeai SDK to interact with the Gemma-3 model.
+
+
+Containerization: Packaged using Docker and deployed via GitHub Actions.
+
 Orchestration: Fully managed and orchestrated by Kubernetes (K8s).
-+2
 
 == 🛠 Technical Configuration
+== 🌐 Service Discovery (Consul)
 
+The service automatically registers itself with **Consul** upon startup to enable seamless integration with the Frontend or Gateway.
+
+* **Service Name**: `translator-service`
+* **Health Check**: Every 10 seconds via `GET /`.
+* **Deregistration**: Performed automatically on service shutdown.
+
+[source,bash]
+----
+# Check registered services in Consul
+curl http://consul-server:8500/v1/catalog/service/translator-service
+----
 === 1. Environment Variables (.env) The project requires the following configuration parameters:
-+2
 
 [source,env]
 GEMINI_API_KEY=AIzaSy... # Google AI Studio API Key MONGO_URI=mongodb://mongodb:27017/ # MongoDB connection string PORT=8080 # FastAPI service port
 === 2. Dependencies (requirements.txt) The service utilizes optimized Python libraries:
-+2
-
 
 fastapi & uvicorn: High-performance web framework.
-+3
-
 
 google-generativeai: SDK for Gemini AI connectivity.
-+3
-
 
 pymongo: Official driver for MongoDB operations.
-+3
+
+bson: Library to handle MongoDB ObjectIDs.
 
 == 🚀 Deployment Guide
 
 === Step 1: Initialize Kubernetes Secrets Before deploying the pods, create a secret to securely store sensitive information:
-+2
 
 [source,bash]
 kubectl create secret generic ai-secrets
@@ -71,17 +68,10 @@ kubectl create secret generic ai-secrets
 --from-literal=MONGO_URI=mongodb://mongodb:27017/
 
 === Step 2: Infrastructure Deployment Deploy the components in the following order:
-+2
 
-MongoDB:
+MongoDB: kubectl apply -f 1mongo-deploy.yml
 
-
-kubectl apply -f 1mongo-deploy.yml 
-
-Translator App:
-
-
-kubectl apply -f 3translator-deploy.yml 
+Translator App: kubectl apply -f 3translator-deploy.yml
 
 === Step 3: CI/CD Pipeline The system automatically builds and pushes the image to Docker Hub on every push to the main branch via GitHub Actions. The image is tagged as: ${{ secrets.DOCKERHUB_USERNAME }}/movie-translator:latest.
 
@@ -89,36 +79,39 @@ kubectl apply -f 3translator-deploy.yml
 
 === 1. Health Check
 
-
-Endpoint: GET / 
-+1
-
+Endpoint: GET /
 
 Description: Verifies if the service is up and running.
-+1
 
-=== 2. Trigger Translation Process
+=== 2. Translate by Filter (Batch Processing)
 
-
-Endpoint: POST /translate/filter 
-+1
-
+Endpoint: POST /translate/filter
 
 Parameters: year (Optional - Filter movies by release year).
-+1
+
+Description: Scans for 10 movies matching the criteria and translates them in the background.
 
 Usage: [source,bash]
 
 curl -X 'POST' 'http://<ingress-ip>/translate/filter?year=2026'
+=== 3. Translate by Specific ID (Single Processing) [NEW]
+
+Endpoint: POST /translate/id/{movie_id}
+
+Parameters: movie_id (The MongoDB _id of the movie).
+
+Description: Immediately queues a specific movie for translation.
+
+Usage: [source,bash]
+
+curl -X 'POST' 'http://<ingress-ip>/translate/id/69898d766862aa18a18ce5b0'
 == 📂 Core Source Structure (main.py)
 
 The application leverages Background Tasks to ensure the API responds immediately while the AI processes translations in the background:
-+1
 
 [source,python]
-@app.post('/translate/filter') async def translate(background_tasks: BackgroundTasks, year: Optional[int] = None): # Search for movies with an English plot but no Vietnamese translation query = {'fullplot': {'$exists': True}, 'fullplot_vi': {'$exists': False}} if year: query['year'] = year
+@app.post('/translate/id/{movie_id}') async def translate_by_id(movie_id: str, background_tasks: BackgroundTasks): obj_id = ObjectId(movie_id) movie = col.find_one({'_id': obj_id}) if not movie: raise HTTPException(status_code=404, detail="Movie not found")
 
-# Queue the translation process as a background task
-background_tasks.add_task(background_translate, query)
-return {'status': 'started'}
-Copyright © 2026 Masterhuthiu. Built with ❤️ and AI
+background_tasks.add_task(translate_single_movie, movie)
+return {'status': 'added_to_queue', 'title': movie.get('title')}
+Copyright © 2026 Masterhuthiu. Built with ❤️ and AI.

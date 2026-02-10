@@ -1,73 +1,60 @@
 import os
 import time
+import socket
+import consul
 import google.generativeai as genai
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pymongo import MongoClient
+from bson import ObjectId
 from typing import Optional
 
 app = FastAPI(title='JHipster AI Service')
+
+# Cấu hình Consul
+CONSUL_HOST = os.getenv('CONSUL_HOST', 'consul-server')
+CONSUL_PORT = int(os.getenv('CONSUL_PORT', 8500))
+SERVICE_NAME = 'translator-service'
+SERVICE_ID = f"{SERVICE_NAME}-{socket.gethostname()}"
+SERVICE_PORT = 8080
 
 # Cấu hình AI & Database
 try:
     genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
     model = genai.GenerativeModel('gemma-3-27b-it')
-    
-    # Thêm timeout để không treo App nếu DB lỗi
     client = MongoClient(os.getenv('MONGO_URI'), serverSelectionTimeoutMS=5000)
     db = client.sample_mflix
     col = db.movies
-    print("✅ Kết nối DB và AI thành công")
 except Exception as e:
-    print(f"❌ Lỗi cấu hình ban đầu: {e}")
+    print(f"❌ Lỗi cấu hình: {e}")
 
-def background_translate(query: dict):
-    print(f"🚀 Bắt đầu dịch với filter: {query}")
-    # Giới hạn 10 phim mỗi lần gọi để tránh quá tải API Key miễn phí
-    movies = list(col.find(query).limit(10))
-    
-    for movie in movies:
-        try:
-            plot = movie.get('fullplot')
-            title = movie.get('title', 'Unknown')
-            
-            if not plot:
-                continue
-            
-            # Tách prompt ra để an toàn cho Python 3.9
-            prompt = f"Dịch tóm tắt phim sau sang tiếng Việt tự nhiên: {plot}"
-            response = model.generate_content(prompt)
-            
-            # SỬA LỖI: Bỏ dấu gạch chéo ngược ở $set
-            col.update_one(
-                {'_id': movie['_id']}, 
-                {'$set': {
-                    'fullplot_vi': response.text, 
-                    'translated_by': 'gemma-3-27b-it'
-                }}
-            )
-            print(f"✅ Đã dịch xong: {title}")
-            time.sleep(1) # Nghỉ 1 giây giữa mỗi phim
-            
-        except Exception as e:
-            print(f"❌ Lỗi khi dịch phim {movie.get('_id')}: {e}")
-
-@app.post('/translate/filter')
-async def translate(background_tasks: BackgroundTasks, year: Optional[int] = None):
-    # SỬA LỖI: Bỏ dấu gạch chéo ngược ở $exists
-    query = {
-        'fullplot': {'$exists': True}, 
-        'fullplot_vi': {'$exists': False}
-    }
-    
-    if year:
-        query['year'] = year
+@app.on_event("startup")
+async def register_to_consul():
+    try:
+        c = consul.Consul(host=CONSUL_HOST, port=CONSUL_PORT)
+        # Lấy IP của chính Pod này trong mạng nội bộ K8s
+        ip_address = socket.gethostbyname(socket.gethostname())
         
-    background_tasks.add_task(background_translate, query)
-    return {
-        'status': 'started',
-        'filter_applied': str(query)
-    }
+        c.agent.service.register(
+            name=SERVICE_NAME,
+            service_id=SERVICE_ID,
+            address=ip_address,
+            port=SERVICE_PORT,
+            check=consul.Check.http(f"http://{ip_address}:{SERVICE_PORT}/", interval="10s")
+        )
+        print(f"✅ Đã đăng ký với Consul: {SERVICE_ID}")
+    except Exception as e:
+        print(f"❌ Không thể đăng ký Consul: {e}")
 
+@app.on_event("shutdown")
+async def deregister_from_consul():
+    try:
+        c = consul.Consul(host=CONSUL_HOST, port=CONSUL_PORT)
+        c.agent.service.deregister(SERVICE_ID)
+        print(f"👋 Đã hủy đăng ký khỏi Consul")
+    except Exception as e:
+        print(f"❌ Lỗi khi hủy đăng ký Consul: {e}")
+
+# ... Giữ nguyên các hàm translate và endpoints cũ ...
 @app.get('/')
 def health():
     return {'status': 'ok', 'service': 'translator'}

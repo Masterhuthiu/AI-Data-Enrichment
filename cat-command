@@ -1,0 +1,125 @@
+# 1. File Consul Deployment (Mới)
+cat <<EOF > 0consul-deploy.yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: consul-server-service
+spec:
+  ports:
+    - name: http
+      port: 8500
+      targetPort: 8500
+  selector:
+    app: consul
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consul-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consul
+  template:
+    metadata:
+      labels:
+        app: consul
+    spec:
+      containers:
+      - name: consul
+        image: hashicorp/consul:1.15
+        args: ["agent", "-dev", "-client=0.0.0.0"]
+        ports:
+          - containerPort: 8500
+            name: http
+EOF
+
+# 2. File MongoDB Deployment (Chuẩn hóa tên service)
+cat <<EOF > 1mongo-deploy.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+spec:
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: quay.io/cosa199212/mongo-sample-mflix:latest
+        ports:
+        - containerPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+EOF
+
+# 3. File Translator Deployment (Tích hợp Consul & Secret)
+cat <<EOF > 3translator-deploy.yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: translator-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: translator
+  template:
+    metadata:
+      labels:
+        app: translator
+    spec:
+      containers:
+      - name: translator-container
+        image: masterhuthiu/movie-translator:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: CONSUL_HOST
+          value: "consul-server-service"
+        - name: CONSUL_PORT
+          value: "8500"
+        envFrom:
+        - secretRef:
+            name: ai-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: translator-service
+spec:
+  selector:
+    app: translator
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: NodePort
+EOF
+
+# 4. Cập nhật requirements.txt (Thêm python-consul2)
+cat <<EOF > requirements.txt
+fastapi
+uvicorn
+google-generativeai
+pymongo
+python-dotenv
+python-consul2
+EOF
